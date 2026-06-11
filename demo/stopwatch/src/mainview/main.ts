@@ -22,7 +22,8 @@ const electroview = new Electroview({ rpc });
 SteamBun.bind(electroview);
 
 // Create the SteamBun stopwatch client
-const stopwatch = SteamBun.create(StopwatchMethod);
+const { rx, tx } = SteamBun.create(StopwatchMethod);
+const writer = tx.getWriter();
 
 const app = document.getElementById("app")!;
 
@@ -102,17 +103,17 @@ function render(): void {
   // Attach Event Listeners
   document.getElementById("start-btn")!.addEventListener("click", () => {
     if (status === "running") {
-      stopwatch.call({ type: "stop" });
+      writer.write({ type: "stop" });
       status = "paused";
     } else {
-      stopwatch.call({ type: "start" });
+      writer.write({ type: "start" });
       status = "running";
     }
     render();
   });
 
   document.getElementById("reset-btn")!.addEventListener("click", () => {
-    stopwatch.call({ type: "reset" });
+    writer.write({ type: "reset" });
     currentTime = 0;
     render();
   });
@@ -125,7 +126,7 @@ function render(): void {
 // Subscribe to streaming ticks from Bun backend
 (async () => {
   try {
-    for await (const event of stopwatch.stream()) {
+    for await (const event of rx) {
       currentTime = event.time;
       const display = document.getElementById("time-display");
       if (display) {

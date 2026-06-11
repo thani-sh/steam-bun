@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { MethodDef } from "./index.js";
 import { Message } from "./shared.js";
-import { createAsyncIterable } from "@thani-sh/iterables";
 
 /**
  * ElectrobunWebview represents the minimal RPC interface required by SteamBun.
@@ -22,17 +21,15 @@ class SteamBunBun {
     string,
     {
       methodDef: MethodDef;
-      handler: (
-        events: AsyncGenerator<unknown, void, unknown>,
-      ) => AsyncGenerator<unknown, void, unknown>;
+      handler: (input: ReadableStream<unknown>) => ReadableStream<unknown>;
     }
   >();
 
   private activeStreams = new Map<
     string,
     {
-      inputIterable: ReturnType<typeof createAsyncIterable<unknown>>;
-      outputGenerator: AsyncGenerator<unknown, void, unknown>;
+      inputController: ReadableStreamDefaultController<unknown>;
+      outputReader: ReadableStreamDefaultReader<unknown>;
     }
   >();
 
@@ -60,15 +57,13 @@ class SteamBunBun {
    */
   register<I extends z.ZodTypeAny, O extends z.ZodTypeAny>(
     methodDef: MethodDef<I, O>,
-    handler: (
-      events: AsyncGenerator<z.infer<I>, void, unknown>,
-    ) => AsyncGenerator<z.infer<O>, void, unknown>,
+    handler: (input: ReadableStream<z.infer<I>>) => ReadableStream<z.infer<O>>,
   ): void {
     this.handlers.set(methodDef.name, {
       methodDef: methodDef as unknown as MethodDef,
       handler: handler as unknown as (
-        events: AsyncGenerator<unknown, void, unknown>,
-      ) => AsyncGenerator<unknown, void, unknown>,
+        input: ReadableStream<unknown>,
+      ) => ReadableStream<unknown>,
     });
   }
 
@@ -124,12 +119,20 @@ class SteamBunBun {
       }
 
       const { methodDef, handler } = handlerConfig;
-      const inputIterable = createAsyncIterable<unknown>();
+
+      // Create a push-controlled ReadableStream to feed client inputs to the handler
+      let inputController!: ReadableStreamDefaultController<unknown>;
+      const inputStream = new ReadableStream<unknown>({
+        start(c) {
+          inputController = c;
+        },
+      });
 
       this.activeStreamMethodNames.set(stream, method!);
-      let outputGenerator: AsyncGenerator<unknown, void, unknown>;
+
+      let outputStream: ReadableStream<unknown>;
       try {
-        outputGenerator = handler(inputIterable.iterable);
+        outputStream = handler(inputStream);
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
         this.sendToWebview({
@@ -140,36 +143,27 @@ class SteamBunBun {
         return;
       }
 
-      this.activeStreams.set(stream, {
-        inputIterable,
-        outputGenerator,
-      });
+      const outputReader = outputStream.getReader();
+      this.activeStreams.set(stream, { inputController, outputReader });
 
-      // Start consuming the generator outputs in a background task
+      // Start consuming the output stream and forwarding chunks to the webview
       (async () => {
         try {
-          for await (const val of outputGenerator) {
-            // Validate outputs at runtime using output Zod schema
-            if (methodDef.output) {
-              methodDef.output.parse(val);
+          while (true) {
+            const { done, value } = await outputReader.read();
+            if (done) {
+              this.sendToWebview({ stream, type: "done" });
+              break;
             }
-            this.sendToWebview({
-              stream,
-              type: "next",
-              content: val,
-            });
+            // Validate outputs at runtime using the output Zod schema
+            if (methodDef.output) {
+              methodDef.output.parse(value);
+            }
+            this.sendToWebview({ stream, type: "next", content: value });
           }
-          this.sendToWebview({
-            stream,
-            type: "done",
-          });
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
-          this.sendToWebview({
-            stream,
-            type: "error",
-            content: errMsg,
-          });
+          this.sendToWebview({ stream, type: "error", content: errMsg });
         } finally {
           this.activeStreams.delete(stream);
           this.activeStreamMethodNames.delete(stream);
@@ -184,7 +178,7 @@ class SteamBunBun {
           if (handlerConfig?.methodDef.input) {
             handlerConfig.methodDef.input.parse(content);
           }
-          activeStream.inputIterable.push(content);
+          activeStream.inputController.enqueue(content);
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
           this.sendToWebview({
@@ -192,27 +186,25 @@ class SteamBunBun {
             type: "error",
             content: `Validation Error: ${errMsg}`,
           });
-          activeStream.inputIterable.reject(err);
+          activeStream.inputController.error(err);
         }
       }
     } else if (type === "done") {
       const activeStream = this.activeStreams.get(stream);
       if (activeStream) {
-        activeStream.inputIterable.complete();
+        activeStream.inputController.close();
       }
     } else if (type === "error") {
       const activeStream = this.activeStreams.get(stream);
       if (activeStream) {
         const errMsg = typeof content === "string" ? content : String(content);
-        activeStream.inputIterable.reject(new Error(errMsg));
+        activeStream.inputController.error(new Error(errMsg));
       }
     } else if (type === "cancel") {
       const activeStream = this.activeStreams.get(stream);
       if (activeStream) {
-        activeStream.inputIterable.complete();
-        if (activeStream.outputGenerator.return) {
-          activeStream.outputGenerator.return(undefined).catch(() => {});
-        }
+        activeStream.inputController.close();
+        activeStream.outputReader.cancel().catch(() => {});
         this.activeStreams.delete(stream);
         this.activeStreamMethodNames.delete(stream);
       }

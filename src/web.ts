@@ -1,7 +1,30 @@
 import { z } from "zod";
 import { MethodDef } from "./index.js";
 import { Message } from "./shared.js";
-import { createAsyncIterable } from "@thani-sh/iterables";
+
+// Polyfill ReadableStream[Symbol.asyncIterator] for environments that do not
+// yet implement it (e.g. WebKit / WKWebView as of macOS 14).
+if (
+  typeof ReadableStream !== "undefined" &&
+  !(ReadableStream.prototype as unknown as Record<symbol, unknown>)[
+    Symbol.asyncIterator
+  ]
+) {
+  (ReadableStream.prototype as unknown as Record<symbol, unknown>)[
+    Symbol.asyncIterator
+  ] = async function* <T>(this: ReadableStream<T>) {
+    const reader = this.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        yield value;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  };
+}
 
 /**
  * ElectrobunElectroview represents the minimal RPC interface required by SteamBun.
@@ -21,7 +44,7 @@ class SteamBunWeb {
   private activeStreams = new Map<
     string,
     {
-      outputIterable: ReturnType<typeof createAsyncIterable<unknown>>;
+      outputController: ReadableStreamDefaultController<unknown>;
       methodDef: MethodDef;
     }
   >();
@@ -79,73 +102,59 @@ class SteamBunWeb {
   }
 
   /**
-   * create constructs a stream client instance for the given method definition.
+   * create constructs a stream handle for the given method definition.
+   * tx is a WritableStream for sending inputs to the server.
+   * rx is a ReadableStream for receiving outputs from the server.
    */
   create<I extends z.ZodTypeAny, O extends z.ZodTypeAny>(
     methodDef: MethodDef<I, O>,
   ): {
-    stream: () => AsyncGenerator<z.infer<O>, void, unknown>;
-    call: (payload: z.infer<I>) => void;
-    done: () => void;
-    error: (err: unknown) => void;
+    rx: ReadableStream<z.infer<O>>;
+    tx: WritableStream<z.infer<I>>;
   } {
-    const stream = crypto.randomUUID();
+    const streamId = crypto.randomUUID();
 
-    // Create the output iterable. On cleanup (exiting for await loop), notify server to cancel
-    const outputIterable = createAsyncIterable<z.infer<O>>({
-      onCleanup: () => {
-        this.sendToBun({
-          stream,
-          type: "cancel",
-        });
-        this.activeStreams.delete(stream);
+    // rx: output stream from server — controller is driven by incoming messages
+    let outputController!: ReadableStreamDefaultController<z.infer<O>>;
+    const rx = new ReadableStream<z.infer<O>>({
+      start(c) {
+        outputController = c;
+      },
+      cancel: () => {
+        // Consumer exited early — notify server to cancel
+        this.sendToBun({ stream: streamId, type: "cancel" });
+        this.activeStreams.delete(streamId);
       },
     });
 
-    this.activeStreams.set(stream, {
-      outputIterable: outputIterable as unknown as ReturnType<
-        typeof createAsyncIterable<unknown>
-      >,
+    this.activeStreams.set(streamId, {
+      outputController:
+        outputController as unknown as ReadableStreamDefaultController<unknown>,
       methodDef: methodDef as unknown as MethodDef,
     });
 
     // Notify server to start the handler
-    this.sendToBun({
-      stream,
-      type: "start",
-      method: methodDef.name,
+    this.sendToBun({ stream: streamId, type: "start", method: methodDef.name });
+
+    // tx: input stream to server — writes are forwarded as protocol messages
+    const tx = new WritableStream<z.infer<I>>({
+      write: (chunk) => {
+        if (methodDef.input) {
+          methodDef.input.parse(chunk);
+        }
+        this.sendToBun({ stream: streamId, type: "next", content: chunk });
+      },
+      close: () => {
+        this.sendToBun({ stream: streamId, type: "done" });
+      },
+      abort: (reason) => {
+        const errMsg =
+          reason instanceof Error ? reason.message : String(reason);
+        this.sendToBun({ stream: streamId, type: "error", content: errMsg });
+      },
     });
 
-    return {
-      stream(): AsyncGenerator<z.infer<O>, void, unknown> {
-        return outputIterable.iterable;
-      },
-      call: (payload: z.infer<I>): void => {
-        // Validate inputs using Zod input schema
-        if (methodDef.input) {
-          methodDef.input.parse(payload);
-        }
-        this.sendToBun({
-          stream,
-          type: "next",
-          content: payload,
-        });
-      },
-      done: (): void => {
-        this.sendToBun({
-          stream,
-          type: "done",
-        });
-      },
-      error: (err: unknown): void => {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        this.sendToBun({
-          stream,
-          type: "error",
-          content: errMsg,
-        });
-      },
-    };
+    return { rx, tx };
   }
 
   /**
@@ -161,17 +170,17 @@ class SteamBunWeb {
         if (activeStream.methodDef.output) {
           activeStream.methodDef.output.parse(content);
         }
-        activeStream.outputIterable.push(content);
+        activeStream.outputController.enqueue(content);
       } catch (err: unknown) {
-        activeStream.outputIterable.reject(err);
+        activeStream.outputController.error(err);
         this.activeStreams.delete(stream);
       }
     } else if (type === "done") {
-      activeStream.outputIterable.complete();
+      activeStream.outputController.close();
       this.activeStreams.delete(stream);
     } else if (type === "error") {
       const errMsg = typeof content === "string" ? content : String(content);
-      activeStream.outputIterable.reject(new Error(errMsg));
+      activeStream.outputController.error(new Error(errMsg));
       this.activeStreams.delete(stream);
     }
   }

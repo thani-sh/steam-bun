@@ -1,56 +1,49 @@
 import { BrowserWindow, BrowserView, Updater } from "electrobun/bun";
 import { SteamBun } from "@thani-sh/steam-bun/bun";
-import { createAsyncIterable } from "@thani-sh/iterables";
 import { Stopwatch } from "../shared/stopwatch";
 import { type WebviewRPCType } from "../shared/types";
 
 // Register the Stopwatch streaming handler
-SteamBun.register(Stopwatch, async function* (events) {
-  const outputQueue = createAsyncIterable<{ time: number }>();
+SteamBun.register(Stopwatch, (input) => {
   let time = 0;
   let intervalId: Timer | null = null;
 
-  // Process client commands in a background task
-  (async () => {
-    try {
-      for await (const event of events) {
-        if (event.type === "start") {
-          if (!intervalId) {
-            intervalId = setInterval(() => {
-              time += 10; // Increment by 10ms (1 centisecond)
-              outputQueue.push({ time });
-            }, 10);
-          }
-        } else if (event.type === "stop") {
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-        } else if (event.type === "reset") {
-          time = 0;
-          outputQueue.push({ time });
-        }
-      }
-      outputQueue.complete();
-    } catch (err) {
-      outputQueue.reject(err);
-    } finally {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    }
-  })();
+  return new ReadableStream<{ time: number }>({
+    async start(controller) {
+      const reader = input.getReader();
+      try {
+        // Process client commands and emit ticks via the output controller
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-  try {
-    for await (const tick of outputQueue.iterable) {
-      yield tick;
-    }
-  } finally {
-    // Clean up interval timer if the client cancels the stream
-    if (intervalId) {
-      clearInterval(intervalId);
-    }
-  }
+          if (value.type === "start") {
+            if (!intervalId) {
+              intervalId = setInterval(() => {
+                time += 10; // Increment by 10ms (1 centisecond)
+                controller.enqueue({ time });
+              }, 10);
+            }
+          } else if (value.type === "stop") {
+            if (intervalId) {
+              clearInterval(intervalId);
+              intervalId = null;
+            }
+          } else if (value.type === "reset") {
+            time = 0;
+            controller.enqueue({ time });
+          }
+        }
+      } finally {
+        // Clean up interval timer if the client cancels or closes the stream
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+        controller.close();
+      }
+    },
+  });
 });
 
 // Configure Electrobun and local server options

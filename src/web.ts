@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MethodDef } from "./index.js";
-import { Message, createAsyncIterable } from "./shared.js";
+import { Message } from "./shared.js";
+import { createAsyncIterable } from "@thani-sh/iterables";
 
 /**
  * ElectrobunElectroview represents the minimal RPC interface required by SteamBun.
@@ -91,12 +92,14 @@ class SteamBunWeb {
     const stream = crypto.randomUUID();
 
     // Create the output iterable. On cleanup (exiting for await loop), notify server to cancel
-    const outputIterable = createAsyncIterable<z.infer<O>>(() => {
-      this.sendToBun({
-        stream,
-        type: "cancel",
-      });
-      this.activeStreams.delete(stream);
+    const outputIterable = createAsyncIterable<z.infer<O>>({
+      onCleanup: () => {
+        this.sendToBun({
+          stream,
+          type: "cancel",
+        });
+        this.activeStreams.delete(stream);
+      },
     });
 
     this.activeStreams.set(stream, {
@@ -115,7 +118,7 @@ class SteamBunWeb {
 
     return {
       stream(): AsyncGenerator<z.infer<O>, void, unknown> {
-        return outputIterable.generator;
+        return outputIterable.iterable;
       },
       call: (payload: z.infer<I>): void => {
         // Validate inputs using Zod input schema

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MethodDef } from "./index.js";
-import { Message, createAsyncIterable } from "./shared.js";
+import { Message } from "./shared.js";
+import { createAsyncIterable } from "@thani-sh/iterables";
 
 /**
  * ElectrobunWebview represents the minimal RPC interface required by SteamBun.
@@ -128,7 +129,7 @@ class SteamBunBun {
       this.activeStreamMethodNames.set(stream, method!);
       let outputGenerator: AsyncGenerator<unknown, void, unknown>;
       try {
-        outputGenerator = handler(inputIterable.generator);
+        outputGenerator = handler(inputIterable.iterable);
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
         this.sendToWebview({

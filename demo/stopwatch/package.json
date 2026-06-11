@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "electrobun": "1.18.1",
-    "@thani-sh/steam-bun": "^1.0.0"
+    "@thani-sh/steam-bun": "file:../../"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

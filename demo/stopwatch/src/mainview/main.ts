@@ -118,7 +118,7 @@ function render(): void {
   });
 
   document.getElementById("close-btn")!.addEventListener("click", () => {
-    electroview.rpc.send.closeWindow();
+    electroview.rpc?.send.closeWindow({});
   });
 }
 

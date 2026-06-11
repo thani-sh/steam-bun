@@ -25,3 +25,5 @@ export type MethodDef<
   input: I;
   output: O;
 };
+
+export type { Message } from "./shared.js";

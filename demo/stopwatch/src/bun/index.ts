@@ -1,5 +1,6 @@
 import { BrowserWindow, BrowserView, Updater } from "electrobun/bun";
-import { SteamBun, createAsyncIterable } from "steam-bun/bun";
+import { SteamBun } from "@thani-sh/steam-bun/bun";
+import { createAsyncIterable } from "@thani-sh/iterables";
 import { Stopwatch } from "../shared/stopwatch";
 import { type WebviewRPCType } from "../shared/types";
 
@@ -41,7 +42,7 @@ SteamBun.register(Stopwatch, async function* (events) {
   })();
 
   try {
-    for await (const tick of outputQueue.generator) {
+    for await (const tick of outputQueue.iterable) {
       yield tick;
     }
   } finally {

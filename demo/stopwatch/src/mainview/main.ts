@@ -1,8 +1,8 @@
 import "./style.css";
-import { Electroview } from 'electrobun/view';
-import { SteamBun } from '@thani-sh/steam-bun/web';
-import { Stopwatch as StopwatchMethod } from '../shared/stopwatch';
-import { type WebviewRPCType } from '../shared/types';
+import { Electroview } from "electrobun/view";
+import { SteamBun } from "@thani-sh/steam-bun/web";
+import { Stopwatch as StopwatchMethod } from "../shared/stopwatch";
+import { type WebviewRPCType } from "../shared/types";
 
 SteamBun.configure({ debug: true });
 
@@ -27,7 +27,7 @@ const stopwatch = SteamBun.create(StopwatchMethod);
 const app = document.getElementById("app")!;
 
 // Application State
-let status: 'idle' | 'running' | 'paused' = 'idle';
+let status: "idle" | "running" | "paused" = "idle";
 let currentTime = 0;
 let laps: number[] = [];
 
@@ -39,7 +39,7 @@ function formatTime(ms: number): string {
   const seconds = Math.floor((ms / 1000) % 60);
   const minutes = Math.floor(ms / 60000);
 
-  const pad = (num: number) => num.toString().padStart(2, '0');
+  const pad = (num: number) => num.toString().padStart(2, "0");
   return `${pad(minutes)}:${pad(seconds)}.${pad(centiseconds)}`;
 }
 
@@ -47,20 +47,20 @@ function formatTime(ms: number): string {
  * render renders the premium borderless UI directly into the main viewport.
  */
 function render(): void {
-  const isIdle = status === 'idle';
-  const isRunning = status === 'running';
-  const isPaused = status === 'paused';
+  const isIdle = status === "idle";
+  const isRunning = status === "running";
+  const isPaused = status === "paused";
 
-  const startButtonText = isRunning ? 'Stop' : isPaused ? 'Resume' : 'Start';
+  const startButtonText = isRunning ? "Stop" : isPaused ? "Resume" : "Start";
   const startButtonClass = isRunning
-    ? 'bg-rose-600 hover:bg-rose-700'
-    : 'bg-cyan-600 hover:bg-cyan-700';
+    ? "bg-rose-600 hover:bg-rose-700"
+    : "bg-cyan-600 hover:bg-cyan-700";
 
   const statusColorClass = isRunning
-    ? 'text-cyan-500'
+    ? "text-cyan-500"
     : isPaused
-    ? 'text-amber-500'
-    : 'text-slate-500';
+      ? "text-amber-500"
+      : "text-slate-500";
 
   // Render direct main layout filling the window.
   // We apply the electrobun-webkit-app-region-drag class to the main panel so users can drag the window anywhere on the background.
@@ -86,7 +86,7 @@ function render(): void {
       <div class="flex gap-2 w-full mt-3 electrobun-webkit-app-region-no-drag">
         <button id="reset-btn"
           class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-slate-800 text-slate-300 font-semibold rounded-lg text-xs transition-all active:scale-95 cursor-pointer"
-          ${isIdle ? 'disabled' : ''}>
+          ${isIdle ? "disabled" : ""}>
           Reset
         </button>
 
@@ -101,18 +101,18 @@ function render(): void {
 
   // Attach Event Listeners
   document.getElementById("start-btn")!.addEventListener("click", () => {
-    if (status === 'running') {
-      stopwatch.call({ type: 'stop' });
-      status = 'paused';
+    if (status === "running") {
+      stopwatch.call({ type: "stop" });
+      status = "paused";
     } else {
-      stopwatch.call({ type: 'start' });
-      status = 'running';
+      stopwatch.call({ type: "start" });
+      status = "running";
     }
     render();
   });
 
   document.getElementById("reset-btn")!.addEventListener("click", () => {
-    stopwatch.call({ type: 'reset' });
+    stopwatch.call({ type: "reset" });
     currentTime = 0;
     render();
   });
@@ -135,7 +135,7 @@ function render(): void {
       }
     }
   } catch (err) {
-    console.error('Stopwatch stream error:', err);
+    console.error("Stopwatch stream error:", err);
   }
 })();
 

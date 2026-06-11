@@ -16,11 +16,11 @@ Create a shared file for your RPC methods:
 
 ```ts
 // shared/methods.ts
-import { z } from 'zod';
-import { method } from '@thani-sh/steam-bun';
+import { z } from "zod";
+import { method } from "@thani-sh/steam-bun";
 
-export const Stopwatch = method('stopwatch', {
-  input: z.object({ type: z.enum(['start', 'stop', 'reset']) }),
+export const Stopwatch = method("stopwatch", {
+  input: z.object({ type: z.enum(["start", "stop", "reset"]) }),
   output: z.object({ time: z.number() }),
 });
 ```
@@ -72,9 +72,9 @@ SteamBun.bind(webview);
 ### 3. Client (Web) Setup
 
 ```ts
-import { Electroview } from 'electrobun/view';
-import { SteamBun } from '@thani-sh/steam-bun/web';
-import { Stopwatch } from './shared/methods';
+import { Electroview } from "electrobun/view";
+import { SteamBun } from "@thani-sh/steam-bun/web";
+import { Stopwatch } from "./shared/methods";
 
 // Configure SteamBun
 SteamBun.configure({ debug: true });
@@ -88,7 +88,7 @@ const rpc = Electroview.defineRPC({
     messages: {
       ...SteamBun.messages,
     },
-  }
+  },
 });
 
 const electroview = new Electroview({ rpc });
@@ -104,19 +104,19 @@ const stopwatch = SteamBun.create(Stopwatch);
 (async () => {
   try {
     for await (const event of stopwatch.stream()) {
-      console.log('Stopwatch time:', event.time);
+      console.log("Stopwatch time:", event.time);
     }
   } catch (err) {
-    console.error('Stopwatch error:', err);
+    console.error("Stopwatch error:", err);
   }
 })();
 
 // Send inputs to server
 (async () => {
-  stopwatch.call({ type: 'start' });
-  await new Promise(r => setTimeout(r, 5000));
-  stopwatch.call({ type: 'reset' });
-  await new Promise(r => setTimeout(r, 5000));
-  stopwatch.call({ type: 'stop' });
+  stopwatch.call({ type: "start" });
+  await new Promise((r) => setTimeout(r, 5000));
+  stopwatch.call({ type: "reset" });
+  await new Promise((r) => setTimeout(r, 5000));
+  stopwatch.call({ type: "stop" });
 })();
 ```

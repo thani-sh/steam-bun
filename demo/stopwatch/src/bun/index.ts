@@ -13,19 +13,19 @@ SteamBun.register(Stopwatch, async function* (events) {
   (async () => {
     try {
       for await (const event of events) {
-        if (event.type === 'start') {
+        if (event.type === "start") {
           if (!intervalId) {
             intervalId = setInterval(() => {
               time += 10; // Increment by 10ms (1 centisecond)
               outputQueue.push({ time });
             }, 10);
           }
-        } else if (event.type === 'stop') {
+        } else if (event.type === "stop") {
           if (intervalId) {
             clearInterval(intervalId);
             intervalId = null;
           }
-        } else if (event.type === 'reset') {
+        } else if (event.type === "reset") {
           time = 0;
           outputQueue.push({ time });
         }
@@ -65,7 +65,7 @@ async function getMainViewUrl(): Promise<string> {
       return DEV_SERVER_URL;
     } catch {
       console.log(
-        "Vite dev server not running. Run 'bun run dev:hmr' for HMR support."
+        "Vite dev server not running. Run 'bun run dev:hmr' for HMR support.",
       );
     }
   }

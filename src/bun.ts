@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { MethodDef } from './index';
-import { Message, createAsyncIterable } from './shared';
+import { z } from "zod";
+import { MethodDef } from "./index.js";
+import { Message, createAsyncIterable } from "./shared.js";
 
 /**
  * ElectrobunWebview represents the minimal RPC interface required by SteamBun.
@@ -22,7 +22,7 @@ class SteamBunBun {
     {
       methodDef: MethodDef;
       handler: (
-        events: AsyncGenerator<unknown, void, unknown>
+        events: AsyncGenerator<unknown, void, unknown>,
       ) => AsyncGenerator<unknown, void, unknown>;
     }
   >();
@@ -60,13 +60,13 @@ class SteamBunBun {
   register<I extends z.ZodTypeAny, O extends z.ZodTypeAny>(
     methodDef: MethodDef<I, O>,
     handler: (
-      events: AsyncGenerator<z.infer<I>, void, unknown>
-    ) => AsyncGenerator<z.infer<O>, void, unknown>
+      events: AsyncGenerator<z.infer<I>, void, unknown>,
+    ) => AsyncGenerator<z.infer<O>, void, unknown>,
   ): void {
     this.handlers.set(methodDef.name, {
       methodDef: methodDef as unknown as MethodDef,
       handler: handler as unknown as (
-        events: AsyncGenerator<unknown, void, unknown>
+        events: AsyncGenerator<unknown, void, unknown>,
       ) => AsyncGenerator<unknown, void, unknown>,
     });
   }
@@ -98,7 +98,7 @@ class SteamBunBun {
     return {
       steamBunMessage: (payload: Message): void => {
         if (this.debug) {
-          console.log('[SteamBun Server] Received message:', payload);
+          console.log("[SteamBun Server] Received message:", payload);
         }
         this.handleMessage(payload);
       },
@@ -111,12 +111,12 @@ class SteamBunBun {
   private handleMessage(msg: Message): void {
     const { stream, type, method, content } = msg;
 
-    if (type === 'start') {
+    if (type === "start") {
       const handlerConfig = this.handlers.get(method!);
       if (!handlerConfig) {
         this.sendToWebview({
           stream,
-          type: 'error',
+          type: "error",
           content: `SteamBun: Method "${method}" is not registered on the server.`,
         });
         return;
@@ -133,7 +133,7 @@ class SteamBunBun {
         const errMsg = err instanceof Error ? err.message : String(err);
         this.sendToWebview({
           stream,
-          type: 'error',
+          type: "error",
           content: `Error instantiating stream: ${errMsg}`,
         });
         return;
@@ -154,19 +154,19 @@ class SteamBunBun {
             }
             this.sendToWebview({
               stream,
-              type: 'next',
+              type: "next",
               content: val,
             });
           }
           this.sendToWebview({
             stream,
-            type: 'done',
+            type: "done",
           });
         } catch (err: unknown) {
           const errMsg = err instanceof Error ? err.message : String(err);
           this.sendToWebview({
             stream,
-            type: 'error',
+            type: "error",
             content: errMsg,
           });
         } finally {
@@ -174,7 +174,7 @@ class SteamBunBun {
           this.activeStreamMethodNames.delete(stream);
         }
       })();
-    } else if (type === 'next') {
+    } else if (type === "next") {
       const activeStream = this.activeStreams.get(stream);
       if (activeStream) {
         const name = this.activeStreamMethodNames.get(stream);
@@ -188,24 +188,24 @@ class SteamBunBun {
           const errMsg = err instanceof Error ? err.message : String(err);
           this.sendToWebview({
             stream,
-            type: 'error',
+            type: "error",
             content: `Validation Error: ${errMsg}`,
           });
           activeStream.inputIterable.reject(err);
         }
       }
-    } else if (type === 'done') {
+    } else if (type === "done") {
       const activeStream = this.activeStreams.get(stream);
       if (activeStream) {
         activeStream.inputIterable.complete();
       }
-    } else if (type === 'error') {
+    } else if (type === "error") {
       const activeStream = this.activeStreams.get(stream);
       if (activeStream) {
-        const errMsg = typeof content === 'string' ? content : String(content);
+        const errMsg = typeof content === "string" ? content : String(content);
         activeStream.inputIterable.reject(new Error(errMsg));
       }
-    } else if (type === 'cancel') {
+    } else if (type === "cancel") {
       const activeStream = this.activeStreams.get(stream);
       if (activeStream) {
         activeStream.inputIterable.complete();
@@ -223,7 +223,7 @@ class SteamBunBun {
    */
   private sendToWebview(msg: Message): void {
     if (this.debug) {
-      console.log('[SteamBun Server] Sending message:', msg);
+      console.log("[SteamBun Server] Sending message:", msg);
     }
     if (
       this.webview &&

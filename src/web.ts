@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { MethodDef } from './index';
-import { Message, createAsyncIterable } from './shared';
+import { z } from "zod";
+import { MethodDef } from "./index.js";
+import { Message, createAsyncIterable } from "./shared.js";
 
 /**
  * ElectrobunElectroview represents the minimal RPC interface required by SteamBun.
@@ -70,7 +70,7 @@ class SteamBunWeb {
     return {
       steamBunMessage: (payload: Message): void => {
         if (this.debug) {
-          console.log('[SteamBun Client] Received message:', payload);
+          console.log("[SteamBun Client] Received message:", payload);
         }
         this.handleMessage(payload);
       },
@@ -81,7 +81,7 @@ class SteamBunWeb {
    * create constructs a stream client instance for the given method definition.
    */
   create<I extends z.ZodTypeAny, O extends z.ZodTypeAny>(
-    methodDef: MethodDef<I, O>
+    methodDef: MethodDef<I, O>,
   ): {
     stream: () => AsyncGenerator<z.infer<O>, void, unknown>;
     call: (payload: z.infer<I>) => void;
@@ -94,7 +94,7 @@ class SteamBunWeb {
     const outputIterable = createAsyncIterable<z.infer<O>>(() => {
       this.sendToBun({
         stream,
-        type: 'cancel',
+        type: "cancel",
       });
       this.activeStreams.delete(stream);
     });
@@ -109,7 +109,7 @@ class SteamBunWeb {
     // Notify server to start the handler
     this.sendToBun({
       stream,
-      type: 'start',
+      type: "start",
       method: methodDef.name,
     });
 
@@ -124,21 +124,21 @@ class SteamBunWeb {
         }
         this.sendToBun({
           stream,
-          type: 'next',
+          type: "next",
           content: payload,
         });
       },
       done: (): void => {
         this.sendToBun({
           stream,
-          type: 'done',
+          type: "done",
         });
       },
       error: (err: unknown): void => {
         const errMsg = err instanceof Error ? err.message : String(err);
         this.sendToBun({
           stream,
-          type: 'error',
+          type: "error",
           content: errMsg,
         });
       },
@@ -153,7 +153,7 @@ class SteamBunWeb {
     const activeStream = this.activeStreams.get(stream);
     if (!activeStream) return;
 
-    if (type === 'next') {
+    if (type === "next") {
       try {
         if (activeStream.methodDef.output) {
           activeStream.methodDef.output.parse(content);
@@ -163,11 +163,11 @@ class SteamBunWeb {
         activeStream.outputIterable.reject(err);
         this.activeStreams.delete(stream);
       }
-    } else if (type === 'done') {
+    } else if (type === "done") {
       activeStream.outputIterable.complete();
       this.activeStreams.delete(stream);
-    } else if (type === 'error') {
-      const errMsg = typeof content === 'string' ? content : String(content);
+    } else if (type === "error") {
+      const errMsg = typeof content === "string" ? content : String(content);
       activeStream.outputIterable.reject(new Error(errMsg));
       this.activeStreams.delete(stream);
     }
@@ -178,7 +178,7 @@ class SteamBunWeb {
    */
   private sendToBun(msg: Message): void {
     if (this.debug) {
-      console.log('[SteamBun Client] Sending message:', msg);
+      console.log("[SteamBun Client] Sending message:", msg);
     }
     if (
       this.electroview &&

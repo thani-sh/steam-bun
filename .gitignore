@@ -111,3 +111,11 @@ dist
 
 # TernJS port file
 .tern-port
+
+# IDEs and tools
+.idea
+.antigravitycli
+
+# Finder (MacOS) folder config
+.DS_Store
+

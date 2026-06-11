@@ -1,5 +1,5 @@
-import { type RPCSchema } from 'electrobun';
-import { type SteamBunMessage } from '@thani-sh/steam-bun';
+import { type RPCSchema } from "electrobun";
+import { type SteamBunMessage } from "@thani-sh/steam-bun";
 
 /**
  * WebviewRPCType defines the Electrobun RPC schema for the stopwatch demo application.

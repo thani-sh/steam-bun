@@ -1,6 +1,6 @@
 {
   "name": "@thani-sh/steam-bun",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Bi-directional streaming RPC for Electrobun",
   "type": "module",
   "main": "./dist/index.js",
